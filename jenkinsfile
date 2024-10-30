@@ -1,7 +1,8 @@
-pipeline {
+{
     agent any
     environment {
         GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa')
+        
     }
     stages {
         stage('Checkout Code') {
@@ -23,57 +24,87 @@ pipeline {
         }
         stage('Wait for VM to be ready') {
             steps {
-                script {
-                    timeout(time: 10, unit: 'MINUTES') {
-                        waitUntil {
-                            def vmIpJson = sh(script: "terraform output -json vm_ips", returnStdout: true).trim()
-                            def vmIps = readJSON text: vmIpJson
-                            return vmIps.every { ip -> sh(script: "nc -z -w 5 ${ip} 22", returnStatus: true) == 0 }
-                        }
-                    }
-                }
+                sleep(time: 60, unit: "SECONDS")
             }
         }
         stage('Fix Directory Permissions') {
             steps {
-                sh 'chmod 755 ${WORKSPACE}'
+                sh 'chmod 755 /var/lib/jenkins/workspace/loadbalancer'
             }
         }
 
         stage('Generate and Update Ansible Inventory') {
             steps {
                 script {
+                    // Capture the JSON output and parse it
                     def vmIpJson = sh(script: "terraform output -json vm_ips", returnStdout: true).trim()
                     def vmIps = readJSON text: vmIpJson
 
-                    def inventoryContent = "all:\n  children:\n    web:\n      hosts:\n"
+                    // Create inventory content with multiple hosts
+                    def inventoryContent = """
+                    all:
+                      children:
+                        web:
+                          hosts:
+                    """
+
+                    // Iterate over the IPs and append to inventory content
                     for (int i = 0; i < vmIps.size(); i++) {
-                        inventoryContent += "        web_ansible-${i + 1}:\n          ansible_host: ${vmIps[i]}\n          ansible_user: centos\n          ansible_ssh_private_key_file: /root/.ssh/id_rsa\n"
+                        inventoryContent += """
+                              web_ansible-${i + 1}:
+                                ansible_host: ${vmIps[i]}
+                                ansible_user: centos
+                                ansible_ssh_private_key_file: /root/.ssh/id_rsa
+                        """
                     }
 
-                    writeFile file: "${WORKSPACE}/inventory.gcp.yml", text: inventoryContent
+                    // Write the inventory content to the file
+                    writeFile file: '/var/lib/jenkins/workspace/loadbalancer/inventory.gcp.yml', text: inventoryContent
                 }
             }
         }
+  stage('Add Host Key') {
+    steps {
+        script {
+            def vmIpJson = sh(script: "terraform output -json vm_ips", returnStdout: true).trim()
+            def vmIps = readJSON text: vmIpJson
 
-        stage('Add Host Key') {
+            for (int i = 0; i < vmIps.size(); i++) {
+                sh "ssh-keyscan -H ${vmIps[i]} >> /root/.ssh/known_hosts || true"
+            }
+        }
+    }
+}  
+
+stage('Cleanup known_hosts') {
             steps {
                 script {
+                    // Retrieve the VM IPs in JSON format
                     def vmIpJson = sh(script: "terraform output -json vm_ips", returnStdout: true).trim()
                     def vmIps = readJSON text: vmIpJson
 
+                    // Debugging output for the retrieved IPs
+                    echo "Cleaning up known_hosts for the following IPs: ${vmIps}"
+
+                    // Remove old entries for each IP
                     for (String ip : vmIps) {
-                        sh "ssh-keyscan -H ${ip} >> /root/.ssh/known_hosts || true"
+                        // Attempt to remove the known_hosts entry for the current IP
+                        def result = sh(script: "ssh-keygen -R ${ip} || true", returnStatus: true)
+
+                        // Optional: Log the result for each IP removal
+                        if (result == 0) {
+                            echo "Successfully removed known_hosts entry for IP: ${ip}"
+                        } else {
+                            echo "Failed to remove known_hosts entry for IP: ${ip} (may not exist)"
+                        }
                     }
                 }
             }
         }
-       
+
         stage('Install Apache using Ansible') {
             steps {
-                withEnv(["ANSIBLE_HOST_KEY_CHECKING=False"]) {
-                    sh "ansible-playbook -i ${WORKSPACE}/inventory.gcp.yml ${WORKSPACE}/apache_install.yml"
-                }
+                sh 'ansible-playbook -i /var/lib/jenkins/workspace/terra-multi-ans/inventory.gcp.yml /var/lib/jenkins/workspace/terra-multi-ans/apache_install.yml'
             }
         }
     }
