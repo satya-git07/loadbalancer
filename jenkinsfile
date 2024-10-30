@@ -71,7 +71,6 @@ pipeline {
 
             for (int i = 0; i < vmIps.size(); i++) {
                 sh "ssh-keyscan -H ${vmIps[i]} >> /root/.ssh/known_hosts || true"
-                sh "ssh-copy-id -H ${vmIps[i]} >> /root/.ssh/known_hosts || true"
             }
         }
     }
