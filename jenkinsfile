@@ -68,6 +68,18 @@ pipeline {
                 }
             }
         }
+        stage('Test SSH Access') {
+            steps {
+                script {
+                    def vmIpJson = sh(script: "terraform output -json vm_ips", returnStdout: true).trim()
+                    def vmIps = readJSON text: vmIpJson
+        
+                    for (String ip : vmIps) {
+                        sh "ssh -i /root/.ssh/id_rsa centos@${ip} 'echo SSH is working!' || { echo 'SSH access failed for ${ip}'; exit 1; }"
+                    }
+                }
+            }
+        }
 
         stage('Install Apache using Ansible') {
             steps {
