@@ -47,17 +47,6 @@ resource "google_compute_backend_service" "default" {
   timeout_sec           = 30
   load_balancing_scheme = "EXTERNAL"
 }
-resource "google_compute_firewall" "default" {
-  name    = "allow-http-ssh"
-  network = "default"
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "80", "443"]  # Allow SSH, HTTP, and HTTPS
-  }
-
-  source_ranges = ["0.0.0.0/0"]  # Allow from anywhere (modify for production)
-}
 
 resource "google_compute_http_health_check" "default" {
   name                    = "apache-health-check1"
