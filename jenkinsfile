@@ -29,7 +29,7 @@ pipeline {
         }
         stage('Fix Directory Permissions') {
             steps {
-                sh 'chmod 755 /var/lib/jenkins/workspace/loadbalancer'
+                sh 'chmod 777 /var/lib/jenkins/workspace/loadbalancer'
             }
         }
 
