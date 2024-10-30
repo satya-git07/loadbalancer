@@ -1,5 +1,5 @@
 provider "google" {
-  project = "primal-gear-436812-t0"
+  project = "eighth-upgrade-436909-e3"
 }
 
 resource "google_compute_instance_template" "default" {
