@@ -84,7 +84,7 @@ output "lb_external_ip" {
 
 resource "google_compute_instance" "centos_vm" {
   count        = var.instance_count
-  name         = "sekhar-${count.index}"
+  name         = "satya-${count.index}"
   machine_type = "e2-medium"
   zone         = "us-central1-a"
 
